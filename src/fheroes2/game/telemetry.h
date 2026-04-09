@@ -1,7 +1,7 @@
 #pragma once
 #include <fstream>
 #include <string>
-#include <algorithm>
+#include <vector>
 #include "world.h"
 #include "settings.h"
 #include "game_interface.h"
@@ -10,47 +10,50 @@
 #include "heroes.h"
 #include "kingdom.h"
 #include "maps.h"
+#include "maps_tiles.h"
 
 namespace Game {
     inline void DumpTelemetry() {
         std::ofstream f("ai_state.json");
         if (!f.is_open()) return;
 
-        const Settings & conf = Settings::Get();
-        const Kingdom & kingdom = world.GetKingdom(conf.CurrentColor());
-        
-        // Lấy thông tin Hero và Area qua hàm Public
-        const Heroes * currentHero = Interface::GetFocusHeroes();
-        Interface::AdventureMap & am = Interface::AdventureMap::Get();
-        const Interface::GameArea & ga = am.getGameArea(); 
-        const fheroes2::Rect roi = ga.GetROI();
-
         f << "{\n";
-        f << "  \"day\": " << (int)world.CountDay() << ",\n";
+        
+        const Settings & conf = Settings::Get();
+        const PlayerColor curColor = conf.CurrentColor();
+        const Kingdom & kingdom = world.GetKingdom(curColor);
+        
+        f << "  \"day\": " << (unsigned int)world.CountDay() << ",\n";
         f << "  \"gold\": " << (int)kingdom.GetFunds().gold << ",\n";
         
+        Heroes * currentHero = Interface::GetFocusHeroes();
         if (currentHero) {
             f << "  \"hero\": {\n";
-            f << "    \"name\": \"" << currentHero->GetName() << "\",\n";
+            f << "    \"name\": \"hero\",\n";
             f << "    \"x\": " << (int)currentHero->GetCenter().x << ",\n";
             f << "    \"y\": " << (int)currentHero->GetCenter().y << ",\n";
-            f << "    \"stamina\": " << (int)currentHero->GetMoves() << "\n";
+            f << "    \"stamina\": " << (int)currentHero->GetMovePoints() << "\n";
             f << "  },\n";
         }
 
         f << "  \"objects\": [\n";
         bool first = true;
         
-        // Quét các Tile trong tầm nhìn thực tế của màn hình
-        for (int32_t i = 0; i < (int32_t)world.getSize(); ++i) {
+        Interface::AdventureMap & am = Interface::AdventureMap::Get();
+        Interface::GameArea & ga = am.getGameArea(); 
+        const fheroes2::Rect roi = ga.GetROI();
+
+        const int32_t w = world.w();
+        const int32_t totalTiles = (int32_t)world.getSize();
+        
+        for (int32_t i = 0; i < totalTiles; ++i) {
             const Maps::Tile & tile = world.getTile(i);
             
-            // Chỉ lấy vật thể nếu không có sương mù (Chống AI nhìn xuyên thấu gây lỗi)
-            if (tile.getMainObjectType() != 0 && !tile.isFog(conf.CurrentColor())) {
-                fheroes2::Point p = ga.GetRelativeTilePosition(Maps::GetPoint(i));
+            if (tile.getMainObjectType() != 0 && !tile.isFog(curColor)) {
+                const fheroes2::Point tilePos(i % w, i / w);
+                const fheroes2::Point p = ga.GetRelativeTilePosition(tilePos);
                 
-                // Kiểm tra xem vật thể có đang hiển thị trên màn hình không
-                if (p.x >= roi.x && p.y >= roi.y && p.x < roi.x + roi.width && p.y < roi.y + roi.height) {
+                if (p.x >= roi.x && p.y >= roi.y && p.x < (roi.x + roi.width) && p.y < (roi.y + roi.height)) {
                     if (!first) f << ",\n";
                     f << "    {\"type\": " << (int)tile.getMainObjectType() 
                       << ", \"x_pixel\": " << (int)p.x << ", \"y_pixel\": " << (int)p.y << "}";
