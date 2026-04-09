@@ -23,6 +23,7 @@
 
 #include "game.h" // IWYU pragma: associated
 
+#include "telemetry.h"
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
@@ -1068,6 +1069,7 @@ fheroes2::GameMode Interface::AdventureMap::HumanTurn( const bool isLoadedFromSa
     };
 
     while ( res == fheroes2::GameMode::CANCEL ) {
+        Game::DumpTelemetry();
         if ( !le.HandleEvents( Game::isDelayNeeded( delayTypes ), true ) ) {
             if ( EventExit() == fheroes2::GameMode::QUIT_GAME ) {
                 res = fheroes2::GameMode::QUIT_GAME;
